@@ -1,5 +1,6 @@
 #include <CLI/CLI.hpp>
 #include <SDL2/SDL.h>
+#include <cstdint>
 
 int main(int argc, char* argv[])
 {
@@ -15,13 +16,23 @@ int main(int argc, char* argv[])
     SDL_Init(SDL_INIT_VIDEO);
     SDL_Surface* image = nullptr;
 
-    if (filename.find(".bmp"))
+    if (filename.find(".bmp") != std::string::npos)
         image = SDL_LoadBMP(filename.c_str());
     else
     {
         std::cerr << "Invalid BMP file :" << filename << "\n";
         return 0;
     }
+
+    SDL_PixelFormat* fmt = image->format;
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+    uint32_t* pixels = (uint32_t*)image->pixels;
+    SDL_GetRGB(*(pixels + 100), fmt, &r, &g, &b);
+
+    std::cout << "(" << (int)r << ", " << (int)g << ", " << (int)b << ")" <<
+        "\n";
 
     SDL_Quit();
 
