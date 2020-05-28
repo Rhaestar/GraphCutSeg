@@ -1,29 +1,28 @@
 #pragma once
 
+#define BUCKET_SIZE 16
+
 namespace CPU
 {
     class Histogram
     {
     public:
 
-        Histogram(unsigned bucket_size)
-            : bucket_size_(bucket_size)
-            , size_(0)
+        Histogram()
+            : size_(0)
         {
-            hist_ = new unsigned[bucket_size_ * bucket_size_ * bucket_size_];
+            for (int i = 0; i < BUCKET_SIZE * BUCKET_SIZE * BUCKET_SIZE; ++i)
+                hist_[i] = 0;
         }
 
         ~Histogram()
-        {
-            delete[] hist_;
-        }
+        {}
 
         void AddElement(unsigned r, unsigned g, unsigned b);
         float GetProba(unsigned r, unsigned g, unsigned b);
 
     private:
-        unsigned bucket_size_;
         unsigned size_;
-        unsigned* hist_;
+        unsigned hist_[BUCKET_SIZE * BUCKET_SIZE * BUCKET_SIZE];
     };
 }
