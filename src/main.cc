@@ -1,3 +1,5 @@
+#include "histogram.hh"
+
 #include <CLI/CLI.hpp>
 #include <SDL2/SDL.h>
 #include <cstdint>
