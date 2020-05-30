@@ -178,10 +178,10 @@ namespace CPU
                             lambda * pobj;
                         break;
                     case 1:
-                        excessFlows[i * image->w + j] = k;
+                        excessFlows[i * image->w + j] = k * 10000;
                         break;
                     case 2:
-                        excessFlows[i * image->w + j] = -k;
+                        excessFlows[i * image->w + j] = -k * 10000;
                         break;
                     default:
                         break;
@@ -193,15 +193,158 @@ namespace CPU
 
     }
 
+    int IsAnyActive(float* excessFlows, uint32_t* heights, uint32_t width,
+        uint32_t height, uint32_t heightMax)
+    {
+        int ret = 0;
+        for (unsigned i = 0; i < height; ++i)
+        {
+            for (unsigned j = 0; j < width; ++j)
+            {
+                if (excessFlows[i * width + j] > 0 &&
+                    heights[i * width + j] < heightMax)
+                    ret++;
+            }
+        }
+        return ret;
+    }
+
+    void Push(float* excessFlows, float* weightsUp, float* weightsDown,
+        float* weightsLeft, float* weightsRight, uint32_t* heights,
+        uint32_t heightMax, uint32_t width, uint32_t height)
+    {
+        for (unsigned i = 0; i < height; ++i)
+        {
+            for (unsigned j = 0; j < width; ++j)
+            {
+                float currFlow = excessFlows[i * width + j];
+                uint32_t currHeight = heights[i * width + j];
+
+                if (currFlow > 0 && currHeight < heightMax)
+                {
+                    if (i > 0 && currHeight - 1 == heights[(i-1) * width + j])
+                    {
+                        float flow = std::min(currFlow,
+                            weightsUp[i * width + j]);
+                        excessFlows[i * width + j] -= flow;
+                        excessFlows[(i - 1) * width + j] += flow;
+                        weightsUp[i * width + j] -= flow;
+                        weightsDown[(i - 1) * width + j] += flow;
+                    }
+                    if (j > 0 && currHeight - 1 == heights[i * width + j - 1])
+                    {
+                        float flow = std::min(currFlow,
+                            weightsLeft[i * width + j]);
+                        excessFlows[i * width + j] -= flow;
+                        excessFlows[i * width + j - 1] += flow;
+                        weightsLeft[i * width + j] -= flow;
+                        weightsRight[i * width + j - 1] += flow;
+                    }
+                    if (i < height - 1 && currHeight - 1 == heights[(i+1) * width + j])
+                    {
+                        float flow = std::min(currFlow,
+                            weightsDown[i * width + j]);
+                        excessFlows[i * width + j] -= flow;
+                        excessFlows[(i+1) * width + j] += flow;
+                        weightsDown[i * width + j] -= flow;
+                        weightsUp[(i+1) * width + j] += flow;
+                    }
+                    if (j < width - 1 && currHeight - 1 == heights[i * width + j
+                        + 1])
+                    {
+                        float flow = std::min(currFlow,
+                            weightsRight[i * width + j]);
+                        excessFlows[i * width + j] -= flow;
+                        excessFlows[i * width + j + 1] += flow;
+                        weightsRight[i * width + j] -= flow;
+                        weightsLeft[i * width + j + 1] += flow;
+                    }
+                }
+            }
+        }
+    }
+
+    void Relabel(float* excessFlows,
+        float* weightsUp, float* weightsDown, float* weightsLeft,
+        float* weightsRight, uint32_t* heights, uint32_t* heightsTemp,
+        uint32_t heightMax, unsigned width, unsigned height)
+    {
+        for (unsigned i = 0; i < height; ++i)
+        {
+            for (unsigned j = 0; j < width; ++j)
+            {
+                float currFlow = excessFlows[i * width + j];
+                uint32_t currHeight = heights[i * width + j];
+
+                if (currFlow > 0 && currHeight < heightMax)
+                {
+                    uint32_t newHeight = heightMax;
+                    if (i > 0 && weightsUp[i * width + j] > 0)
+                    {
+                        newHeight = std::min(newHeight,
+                            heights[(i - 1) * width + j] + 1);
+                    }
+                    if (j > 0 && weightsLeft[i * width + j] > 0)
+                    {
+                        newHeight = std::min(newHeight,
+                            heights[i * width + j - 1] + 1);
+                    }
+                    if (i < height - 1 && weightsDown[i * width + j] > 0)
+                    {
+                        newHeight = std::min(newHeight,
+                            heights[(i + 1) * width + j] + 1);
+                    }
+                    if (j < width - 1 && weightsRight[i * width + j] > 0)
+                    {
+                        newHeight = std::min(newHeight,
+                            heights[i * width + j + 1] + 1);
+                    }
+                    heightsTemp[i * width + j] = newHeight;
+                }
+            }
+        }
+    }
+
+    void SavePicture(uint32_t* heights, uint32_t width, uint32_t height,
+        uint32_t maxHeight)
+    {
+        SDL_Surface *image;
+
+        image = SDL_CreateRGBSurface(0, width, height, 32,0,0,0,0);
+
+        SDL_LockSurface(image);
+
+        uint8_t* pixels = (uint8_t*)image->pixels;
+        SDL_PixelFormat* fmt = image->format;
+
+        for(unsigned i = 0; i < height; ++i)
+        {
+            for (unsigned j = 0; j < width; ++j)
+            {
+                uint32_t* pixel = (uint32_t*)(pixels + i * image->pitch +
+                    j * 4);
+                if (heights[i * width + j] > maxHeight - maxHeight)
+                    *pixel = SDL_MapRGBA(fmt, 255, 255, 255, 255);
+                else
+                    *pixel = SDL_MapRGBA(fmt, 0, 0, 0, 255);
+
+            }
+        }
+
+        SDL_UnlockSurface(image);
+        SDL_SaveBMP(image, "output.bmp");
+    }
+
     void Implem(SDL_Surface* image, SDL_Surface* mask)
     {
         Histogram backHist;
         Histogram foreHist;
 
-        int width = image->w;
-        int height = image->h;
-        float sigma = 10.f;
-        float lambda = 1.f;
+        uint32_t width = image->w;
+        uint32_t height = image->h;
+        uint32_t heightMax = width * height;
+        float sigma = 5.f;
+        float lambda = 0.1f;
 
         uint8_t* bitmask = (uint8_t*)calloc(height * width, sizeof(uint8_t));
 
@@ -227,14 +370,38 @@ namespace CPU
         InitializeExcess(excessFlows, image, foreHist, backHist, bitmask,
             maxCap, lambda);
 
-        for (int i = 0; i < height; ++i)
+        unsigned ip = 0;
+
+        while (IsAnyActive(excessFlows, heights,width, height, heightMax)
+                && ip < 1000)
         {
-            for (int j = 0; j< width; ++j)
-                std::cout << excessFlows[i * width + height] << " ";
-            std::cout << "\n";
+            std::cout << IsAnyActive(excessFlows, heights,width, height, heightMax) << "\n";
+            Relabel(excessFlows, weightsUp, weightsDown, weightsLeft,
+                weightsRight, heights, heights_temp, heightMax,
+                width, height);
+
+            for (unsigned i = 0; i < height; ++i)
+            {
+                for (unsigned j = 0; j < width; ++j)
+                {
+                    heights[i * width + j] = heights_temp[i * width + j];
+                }
+            }
+
+            Push(excessFlows, weightsUp, weightsDown, weightsLeft,
+                weightsRight, heights, heightMax, width, height);
+            ip++;
+            std::cout << "new " << ip << "\n";
         }
 
-        std::cout << logf(FLT_MIN) << "\n";
+        /*for (unsigned i = 0; i < height; ++i)
+        {
+            for (unsigned j = 0; j< width; ++j)
+                std::cout << excessFlows[i * width + j] << " ";
+            std::cout << "\n";
+        }*/
+
+        SavePicture(heights, width, height, heightMax);
 
         free(bitmask);
         free(weightsUp);
@@ -242,7 +409,6 @@ namespace CPU
         free(weightsLeft);
         free(weightsRight);
         free(heights);
-        free(heights_temp);
         free(excessFlows);
 
     }
