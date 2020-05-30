@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <iostream>
 #include <cstdlib>
+#include <cfloat>
 #include "SDL.h"
 
 namespace CPU
@@ -137,6 +138,60 @@ namespace CPU
         return maxCap;
     }
 
+    void InitializeExcess(float *excessFlows, SDL_Surface* image,
+        Histogram& foreHist, Histogram& backHist,
+        uint8_t* bitmask, float k, float lambda)
+    {
+        SDL_LockSurface(image);
+
+        uint8_t* pixels = (uint8_t*)image->pixels;
+        SDL_PixelFormat* fmt = image->format;
+
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
+
+        uint32_t pixel;
+
+        float pobj;
+        float pbkg;
+
+        for (int i = 0; i < image->h; ++i)
+        {
+            for (int j = 0; j < image->w; ++j)
+            {
+                switch (bitmask[i * image->w + j])
+                {
+                    case 0:
+                        pixel = *(uint32_t*)(pixels + i *
+                            image->pitch + j * 4);
+                        SDL_GetRGB(pixel, fmt, &r, &g, &b);
+                        pobj = foreHist.GetProba(r, g, b) * lambda;
+                        pbkg = backHist.GetProba(r, g, b) * lambda;
+                        if (pobj == 0.f)
+                            pobj = FLT_MIN;
+                        if (pbkg == 0.f)
+                            pbkg = FLT_MIN;
+                        pobj = -logf(pobj);
+                        pbkg = -logf(pbkg);
+                        excessFlows[i * image->w + j] = pbkg - pobj;
+                        break;
+                    case 1:
+                        excessFlows[i * image->w + j] = k;
+                        break;
+                    case 2:
+                        excessFlows[i * image->w + j] = -k;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        SDL_UnlockSurface(image);
+
+    }
+
     void Implem(SDL_Surface* image, SDL_Surface* mask)
     {
         Histogram backHist;
@@ -145,6 +200,7 @@ namespace CPU
         int width = image->w;
         int height = image->h;
         float sigma = 10.f;
+        float lambda = 1.f;
 
         uint8_t* bitmask = (uint8_t*)calloc(height * width, sizeof(uint8_t));
 
@@ -167,15 +223,8 @@ namespace CPU
 
         maxCap += 1.f;
 
-        for (int i = 0; i < height; ++i)
-        {
-            for(int j = 0; j < width; ++j)
-            {
-                if (weightsUp[i * width + j] > 1.f)
-                std::cout << weightsUp[i * width + j] << " ";
-            }
-            std::cout << "\n";
-        }
+        InitializeExcess(excessFlows, image, foreHist, backHist, bitmask,
+            maxCap, lambda);
 
         free(bitmask);
         free(weightsUp);

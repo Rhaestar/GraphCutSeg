@@ -2,14 +2,14 @@
 
 namespace CPU
 {
-    void Histogram::AddElement(unsigned r, unsigned g, unsigned b)
+    void Histogram::AddElement(uint8_t r, uint8_t g, uint8_t b)
     {
         hist_[r / BUCKET_SIZE * BUCKET_SIZE * BUCKET_SIZE +
             g / BUCKET_SIZE * BUCKET_SIZE + b / BUCKET_SIZE] += 1;
         size_++;
     }
 
-    float Histogram::GetProba(unsigned r, unsigned g, unsigned b)
+    float Histogram::GetProba(uint8_t r, uint8_t g, uint8_t b)
     {
         return hist_[r / BUCKET_SIZE * BUCKET_SIZE * BUCKET_SIZE +
             g / BUCKET_SIZE * BUCKET_SIZE + b / BUCKET_SIZE] /

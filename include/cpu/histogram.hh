@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #define BUCKET_SIZE 16
 
 namespace CPU
@@ -18,8 +20,8 @@ namespace CPU
         ~Histogram()
         {}
 
-        void AddElement(unsigned r, unsigned g, unsigned b);
-        float GetProba(unsigned r, unsigned g, unsigned b);
+        void AddElement(uint8_t r, uint8_t g, uint8_t b);
+        float GetProba(uint8_t r, uint8_t g, uint8_t b);
 
     private:
         unsigned size_;

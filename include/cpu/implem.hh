@@ -16,4 +16,8 @@ namespace CPU
     float InitializeCapacities(float* weightsUp, float* weightsDown,
         float* weightsLeft, float* weightsRight, SDL_Surface* image,
         float sigma);
+
+    void InitializeExcess(float* excessFlows, SDL_Surface* image,
+        Histogram& foreHist, Histogram& backHist,
+        uint8_t* bitmask, float k, float lambda);
 }
