@@ -8,7 +8,7 @@
 
 namespace CPU
 {
-    void fillHists(Histogram& foreHist, Histogram backHist, SDL_Surface* image,
+    void fillHists(Histogram& foreHist, Histogram& backHist, SDL_Surface* image,
         SDL_Surface* mask, uint8_t* bitmask)
     {
         SDL_LockSurface(image);
@@ -166,15 +166,16 @@ namespace CPU
                         pixel = *(uint32_t*)(pixels + i *
                             image->pitch + j * 4);
                         SDL_GetRGB(pixel, fmt, &r, &g, &b);
-                        pobj = foreHist.GetProba(r, g, b) * lambda;
-                        pbkg = backHist.GetProba(r, g, b) * lambda;
+                        pobj = foreHist.GetProba(r, g, b);
+                        pbkg = backHist.GetProba(r, g, b);
                         if (pobj == 0.f)
                             pobj = FLT_MIN;
                         if (pbkg == 0.f)
                             pbkg = FLT_MIN;
                         pobj = -logf(pobj);
                         pbkg = -logf(pbkg);
-                        excessFlows[i * image->w + j] = pbkg - pobj;
+                        excessFlows[i * image->w + j] = lambda * pbkg -
+                            lambda * pobj;
                         break;
                     case 1:
                         excessFlows[i * image->w + j] = k;
@@ -225,6 +226,15 @@ namespace CPU
 
         InitializeExcess(excessFlows, image, foreHist, backHist, bitmask,
             maxCap, lambda);
+
+        for (int i = 0; i < height; ++i)
+        {
+            for (int j = 0; j< width; ++j)
+                std::cout << excessFlows[i * width + height] << " ";
+            std::cout << "\n";
+        }
+
+        std::cout << logf(FLT_MIN) << "\n";
 
         free(bitmask);
         free(weightsUp);
