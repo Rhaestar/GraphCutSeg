@@ -10,14 +10,14 @@ namespace CPU
 
     void Implem(SDL_Surface* image, SDL_Surface* mask);
 
-    float ComputeDiff(uint8_t r1, uint8_t g1, uint8_t b1,
-        uint8_t r2, uint8_t g2, uint8_t b2, float sigma);
+    int ComputeDiff(uint8_t r1, uint8_t g1, uint8_t b1,
+        uint8_t r2, uint8_t g2, uint8_t b2, float sigma, int param);
 
-    float InitializeCapacities(float* weightsUp, float* weightsDown,
-        float* weightsLeft, float* weightsRight, SDL_Surface* image,
-        float sigma);
+    int InitializeCapacities(int* weightsUp, int* weightsDown,
+        int* weightsLeft, int* weightsRight, SDL_Surface* image,
+        float sigma, int param);
 
-    void InitializeExcess(float* excessFlows, SDL_Surface* image,
+    void InitializeExcess(int* excessFlows, SDL_Surface* image,
         Histogram& foreHist, Histogram& backHist,
-        uint8_t* bitmask, float k, float lambda);
+        uint8_t* bitmask, int k, float lambda);
 }

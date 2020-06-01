@@ -56,24 +56,24 @@ namespace CPU
         SDL_UnlockSurface(mask);
     }
 
-    float ComputeDiff(uint8_t r1, uint8_t g1, uint8_t b1,
-        uint8_t r2, uint8_t g2, uint8_t b2, float sigma)
+    int ComputeDiff(uint8_t r1, uint8_t g1, uint8_t b1,
+        uint8_t r2, uint8_t g2, uint8_t b2, float sigma, int param)
     {
-        float rdiff = (float)(r1) - (float)(r2);
-        float gdiff = (float)(g1) - (float)(g2);
-        float bdiff = (float)(b1) - (float)(b2);
+        int rdiff = r1 - r2;
+        int gdiff = g1 - g2;
+        int bdiff = b1 - b2;
 
         float sqdiff = rdiff * rdiff + gdiff * gdiff + bdiff * bdiff;
-        return expf(-sqdiff / (2 * sigma * sigma));
+        return param * (int)(expf(-sqdiff / (2 * sigma * sigma)));
     }
 
-    float InitializeCapacities(float* weightsUp, float* weightsDown,
-        float* weightsLeft, float* weightsRight, SDL_Surface* image,
-        float sigma)
+    int InitializeCapacities(int* weightsUp, int* weightsDown,
+        int* weightsLeft, int* weightsRight, SDL_Surface* image,
+        float sigma, int param)
     {
         SDL_LockSurface(image);
 
-        float maxCap = 0;
+        int maxCap = 0;
 
         uint8_t* pixels = (uint8_t*)image->pixels;
         SDL_PixelFormat* fmt = image->format;
@@ -100,7 +100,7 @@ namespace CPU
                         image->pitch + j * 4);
                     SDL_GetRGB(pixel2, fmt, &r2, &g2, &b2);
                     weightsUp[i * image->w + j] =
-                        ComputeDiff(r1, g1, b1, r2, g2, b2, sigma);
+                        ComputeDiff(r1, g1, b1, r2, g2, b2, sigma, param);
                     maxCap = std::max(maxCap, weightsUp[i * image->w + j]);
                 }
                 if (i < image->h - 1)
@@ -109,7 +109,7 @@ namespace CPU
                         image->pitch + j * 4);
                     SDL_GetRGB(pixel2, fmt, &r2, &g2, &b2);
                     weightsDown[i * image->w + j] =
-                        ComputeDiff(r1, g1, b1, r2, g2, b2, sigma);
+                        ComputeDiff(r1, g1, b1, r2, g2, b2, sigma, param);
                     maxCap = std::max(maxCap, weightsDown[i * image->w + j]);
                 }
                 if (j > 0)
@@ -118,7 +118,7 @@ namespace CPU
                         image->pitch + (j - 1) * 4);
                     SDL_GetRGB(pixel2, fmt, &r2, &g2, &b2);
                     weightsLeft[i * image->w + j] =
-                        ComputeDiff(r1, g1, b1, r2, g2, b2, sigma);
+                        ComputeDiff(r1, g1, b1, r2, g2, b2, sigma, param);
                     maxCap = std::max(maxCap, weightsLeft[i * image->w + j]);
                 }
                 if (j < image->w - 1)
@@ -127,7 +127,7 @@ namespace CPU
                         image->pitch + (j + 1) * 4);
                     SDL_GetRGB(pixel2, fmt, &r2, &g2, &b2);
                     weightsRight[i * image->w + j] =
-                        ComputeDiff(r1, g1, b1, r2, g2, b2, sigma);
+                        ComputeDiff(r1, g1, b1, r2, g2, b2, sigma, param);
                     maxCap = std::max(maxCap, weightsRight[i * image->w + j]);
                 }
             }
@@ -138,9 +138,9 @@ namespace CPU
         return maxCap;
     }
 
-    void InitializeExcess(float *excessFlows, SDL_Surface* image,
+    void InitializeExcess(int *excessFlows, SDL_Surface* image,
         Histogram& foreHist, Histogram& backHist,
-        uint8_t* bitmask, float k, float lambda)
+        uint8_t* bitmask, int k, float lambda)
     {
         SDL_LockSurface(image);
 
@@ -174,8 +174,8 @@ namespace CPU
                             pbkg = FLT_MIN;
                         pobj = -logf(pobj);
                         pbkg = -logf(pbkg);
-                        excessFlows[i * image->w + j] = lambda * pbkg -
-                            lambda * pobj;
+                        excessFlows[i * image->w + j] = (int)(lambda * pbkg -
+                            lambda * pobj);
                         break;
                     case 1:
                         excessFlows[i * image->w + j] = k * 10000;
@@ -193,7 +193,7 @@ namespace CPU
 
     }
 
-    int IsAnyActive(float* excessFlows, uint32_t* heights, uint32_t width,
+    int IsAnyActive(int* excessFlows, uint32_t* heights, uint32_t width,
         uint32_t height, uint32_t heightMax)
     {
         int ret = 0;
@@ -209,22 +209,22 @@ namespace CPU
         return ret;
     }
 
-    void Push(float* excessFlows, float* weightsUp, float* weightsDown,
-        float* weightsLeft, float* weightsRight, uint32_t* heights,
+    void Push(int* excessFlows, int* weightsUp, int* weightsDown,
+        int* weightsLeft, int* weightsRight, uint32_t* heights,
         uint32_t heightMax, uint32_t width, uint32_t height)
     {
         for (unsigned i = 0; i < height; ++i)
         {
             for (unsigned j = 0; j < width; ++j)
             {
-                float currFlow = excessFlows[i * width + j];
+                int currFlow = excessFlows[i * width + j];
                 uint32_t currHeight = heights[i * width + j];
 
                 if (currFlow > 0 && currHeight < heightMax)
                 {
                     if (i > 0 && currHeight - 1 == heights[(i-1) * width + j])
                     {
-                        float flow = std::min(currFlow,
+                        int flow = std::min(currFlow,
                             weightsUp[i * width + j]);
                         excessFlows[i * width + j] -= flow;
                         excessFlows[(i - 1) * width + j] += flow;
@@ -233,7 +233,7 @@ namespace CPU
                     }
                     if (j > 0 && currHeight - 1 == heights[i * width + j - 1])
                     {
-                        float flow = std::min(currFlow,
+                        int flow = std::min(currFlow,
                             weightsLeft[i * width + j]);
                         excessFlows[i * width + j] -= flow;
                         excessFlows[i * width + j - 1] += flow;
@@ -242,7 +242,7 @@ namespace CPU
                     }
                     if (i < height - 1 && currHeight - 1 == heights[(i+1) * width + j])
                     {
-                        float flow = std::min(currFlow,
+                        int flow = std::min(currFlow,
                             weightsDown[i * width + j]);
                         excessFlows[i * width + j] -= flow;
                         excessFlows[(i+1) * width + j] += flow;
@@ -252,7 +252,7 @@ namespace CPU
                     if (j < width - 1 && currHeight - 1 == heights[i * width + j
                         + 1])
                     {
-                        float flow = std::min(currFlow,
+                        int flow = std::min(currFlow,
                             weightsRight[i * width + j]);
                         excessFlows[i * width + j] -= flow;
                         excessFlows[i * width + j + 1] += flow;
@@ -264,16 +264,16 @@ namespace CPU
         }
     }
 
-    void Relabel(float* excessFlows,
-        float* weightsUp, float* weightsDown, float* weightsLeft,
-        float* weightsRight, uint32_t* heights, uint32_t* heightsTemp,
+    void Relabel(int* excessFlows,
+        int* weightsUp, int* weightsDown, int* weightsLeft,
+        int* weightsRight, uint32_t* heights, uint32_t* heightsTemp,
         uint32_t heightMax, unsigned width, unsigned height)
     {
         for (unsigned i = 0; i < height; ++i)
         {
             for (unsigned j = 0; j < width; ++j)
             {
-                float currFlow = excessFlows[i * width + j];
+                int currFlow = excessFlows[i * width + j];
                 uint32_t currHeight = heights[i * width + j];
 
                 if (currFlow > 0 && currHeight < heightMax)
@@ -345,27 +345,28 @@ namespace CPU
         uint32_t heightMax = width * height;
         float sigma = 5.f;
         float lambda = 0.1f;
+        int param = 100;
 
         uint8_t* bitmask = (uint8_t*)calloc(height * width, sizeof(uint8_t));
 
-        float* weightsUp    = (float*)calloc(height * width, sizeof(float));
-        float* weightsDown  = (float*)calloc(height * width, sizeof(float));
-        float* weightsLeft  = (float*)calloc(height * width, sizeof(float));
-        float* weightsRight = (float*)calloc(height * width, sizeof(float));
+        int* weightsUp    = (int*)calloc(height * width, sizeof(int));
+        int* weightsDown  = (int*)calloc(height * width, sizeof(int));
+        int* weightsLeft  = (int*)calloc(height * width, sizeof(int));
+        int* weightsRight = (int*)calloc(height * width, sizeof(int));
 
         uint32_t* heights = (uint32_t*)calloc(height * width,
             sizeof(uint32_t));
         uint32_t* heights_temp = (uint32_t*)calloc(height * width,
             sizeof(uint32_t));
 
-        float* excessFlows = (float*)calloc(height * width, sizeof(float));
+        int* excessFlows = (int*)calloc(height * width, sizeof(int));
 
         fillHists(foreHist, backHist, image, mask, bitmask);
 
-        float maxCap = InitializeCapacities(weightsUp, weightsDown,
-            weightsLeft, weightsRight, image, sigma);
+        int maxCap = InitializeCapacities(weightsUp, weightsDown,
+            weightsLeft, weightsRight, image, sigma, param);
 
-        maxCap += 1.f;
+        maxCap += 1;
 
         InitializeExcess(excessFlows, image, foreHist, backHist, bitmask,
             maxCap, lambda);
