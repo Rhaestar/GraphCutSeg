@@ -1,18 +1,22 @@
 #include "histogram.hh"
+#include <iostream>
 
 namespace CPU
 {
     void Histogram::AddElement(uint8_t r, uint8_t g, uint8_t b)
     {
-        hist_[r / BUCKET_SIZE * BUCKET_SIZE * BUCKET_SIZE +
-            g / BUCKET_SIZE * BUCKET_SIZE + b / BUCKET_SIZE] += 1;
+        int index = (int)(r) / BUCKET_SIZE * ARRAY_SIZE * ARRAY_SIZE +
+            (int)(g) / BUCKET_SIZE * ARRAY_SIZE + (int)(b) / BUCKET_SIZE;
+        hist_[index] += 1;
         size_++;
     }
 
     float Histogram::GetProba(uint8_t r, uint8_t g, uint8_t b)
     {
-        return hist_[r / BUCKET_SIZE * BUCKET_SIZE * BUCKET_SIZE +
-            g / BUCKET_SIZE * BUCKET_SIZE + b / BUCKET_SIZE] /
-            (float)(size_);
+        int index = (int)(r) / BUCKET_SIZE * ARRAY_SIZE * ARRAY_SIZE +
+            (int)(g) / BUCKET_SIZE * ARRAY_SIZE + (int)(b) / BUCKET_SIZE;
+        //std::cout << index << "\n";
+        float ret = hist_[index];
+        return ret / (float)size_;
     }
 }

@@ -7,6 +7,7 @@ target_link_libraries(graphcutseg
     PUBLIC SDL2::SDL2 
     PUBLIC CLI11::CLI11
     PRIVATE cpu)
+#    PUBLIC -fsanitize=address)
 
 target_include_directories(graphcutseg
     PUBLIC ${CMAKE_SOURCE_DIR}/include/cpu

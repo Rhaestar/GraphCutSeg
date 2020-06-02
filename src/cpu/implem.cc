@@ -31,7 +31,6 @@ namespace CPU
                 uint32_t pixelm = *(uint32_t*)(masks + i * mask->pitch +
                     j * 4);
                 SDL_GetRGB(pixelm, fmtm, &r, &g, &b);
-
                 if (r == 255 && g == 0 && b == 0)
                 {
                     uint32_t pixeli = *(uint32_t*)(pixels + i * image->pitch +
@@ -64,7 +63,7 @@ namespace CPU
         int bdiff = b1 - b2;
 
         float sqdiff = rdiff * rdiff + gdiff * gdiff + bdiff * bdiff;
-        return param * (int)(expf(-sqdiff / (2 * sigma * sigma)));
+        return (int)((float)(param) * expf(-sqdiff / (2 * sigma * sigma)));
     }
 
     int InitializeCapacities(int* weightsUp, int* weightsDown,
@@ -178,12 +177,13 @@ namespace CPU
                             lambda * pobj);
                         break;
                     case 1:
-                        excessFlows[i * image->w + j] = k * 10000;
+                        excessFlows[i * image->w + j] = k;
                         break;
                     case 2:
-                        excessFlows[i * image->w + j] = -k * 10000;
+                        excessFlows[i * image->w + j] = -k;
                         break;
                     default:
+                        std::cout << "default\n";
                         break;
                 }
             }
@@ -197,12 +197,15 @@ namespace CPU
         uint32_t height, uint32_t heightMax)
     {
         int ret = 0;
-        for (unsigned i = 0; i < height; ++i)
+        for (uint32_t i = 0; i < height; ++i)
         {
-            for (unsigned j = 0; j < width; ++j)
+            for (uint32_t j = 0; j < width; ++j)
             {
-                if (excessFlows[i * width + j] > 0 &&
-                    heights[i * width + j] < heightMax)
+                bool test1 = excessFlows[i * width + j] > 0;
+                int it = excessFlows[i * width + j];
+                it += 1;
+                bool test2 = heights[i * width + j] < heightMax;
+                if (test1 && test2)
                     ret++;
             }
         }
@@ -342,9 +345,9 @@ namespace CPU
 
         uint32_t width = image->w;
         uint32_t height = image->h;
-        uint32_t heightMax = width * height;
-        float sigma = 5.f;
-        float lambda = 0.1f;
+        uint32_t heightMax = 10;
+        float sigma = 7.f;
+        float lambda = 1.f;
         int param = 100;
 
         uint8_t* bitmask = (uint8_t*)calloc(height * width, sizeof(uint8_t));
@@ -356,8 +359,8 @@ namespace CPU
 
         uint32_t* heights = (uint32_t*)calloc(height * width,
             sizeof(uint32_t));
-        uint32_t* heights_temp = (uint32_t*)calloc(height * width,
-            sizeof(uint32_t));
+        //uint32_t* heights_temp = (uint32_t*)calloc(height * width,
+        //    sizeof(uint32_t));
 
         int* excessFlows = (int*)calloc(height * width, sizeof(int));
 
@@ -373,26 +376,26 @@ namespace CPU
 
         unsigned ip = 0;
 
-        while (IsAnyActive(excessFlows, heights,width, height, heightMax)
-                && ip < 1000)
+        while (ip < 1000 &&IsAnyActive(excessFlows, heights,width, height,
+            heightMax))
         {
-            std::cout << IsAnyActive(excessFlows, heights,width, height, heightMax) << "\n";
+            //std::cout << IsAnyActive(excessFlows, heights,width, height, heightMax) << "\n";
             Relabel(excessFlows, weightsUp, weightsDown, weightsLeft,
-                weightsRight, heights, heights_temp, heightMax,
+                weightsRight, heights, heights, heightMax,
                 width, height);
 
-            for (unsigned i = 0; i < height; ++i)
+            /*for (unsigned i = 0; i < height; ++i)
             {
                 for (unsigned j = 0; j < width; ++j)
                 {
                     heights[i * width + j] = heights_temp[i * width + j];
                 }
-            }
+            }*/
 
             Push(excessFlows, weightsUp, weightsDown, weightsLeft,
                 weightsRight, heights, heightMax, width, height);
             ip++;
-            std::cout << "new " << ip << "\n";
+            //std::cout << "new " << ip << "\n";
         }
 
         /*for (unsigned i = 0; i < height; ++i)

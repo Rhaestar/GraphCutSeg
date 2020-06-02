@@ -2,7 +2,8 @@
 
 #include <cstdint>
 
-#define BUCKET_SIZE 16
+#define BUCKET_SIZE 32
+#define ARRAY_SIZE (256 / 32)
 
 namespace CPU
 {
@@ -13,7 +14,7 @@ namespace CPU
         Histogram()
             : size_(0)
         {
-            for (int i = 0; i < BUCKET_SIZE * BUCKET_SIZE * BUCKET_SIZE; ++i)
+            for (int i = 0; i < ARRAY_SIZE * ARRAY_SIZE * ARRAY_SIZE; ++i)
                 hist_[i] = 0;
         }
 
@@ -25,6 +26,6 @@ namespace CPU
 
     private:
         unsigned size_;
-        unsigned hist_[BUCKET_SIZE * BUCKET_SIZE * BUCKET_SIZE];
+        unsigned hist_[ARRAY_SIZE * ARRAY_SIZE * ARRAY_SIZE];
     };
 }
