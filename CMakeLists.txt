@@ -16,6 +16,6 @@ FetchContent_MakeAvailable(CLI11)
 find_package(CUDA REQUIRED)
 find_package(SDL2 REQUIRED)
 
-add_compile_options(-Wall -Wextra -Werror -std=c++17 -g -pedantic -Ofast)
+add_compile_options(-std=c++14 -g -O3)
 
 add_subdirectory(src/)

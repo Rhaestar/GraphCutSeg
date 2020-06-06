@@ -359,8 +359,6 @@ namespace GPU
 
         uint32_t* heights = (uint32_t*)calloc(height * width,
             sizeof(uint32_t));
-        //uint32_t* heights_temp = (uint32_t*)calloc(height * width,
-        //    sizeof(uint32_t));
 
         int* excessFlows = (int*)calloc(height * width, sizeof(int));
 
@@ -374,38 +372,83 @@ namespace GPU
         InitializeExcess(excessFlows, image, foreHist, backHist, bitmask,
             maxCap, lambda);
 
+        int block_size = 32;
+        int w = std::ceil((float)width / block_size);
+        int h = std::ceil((float)width / block_size);
+
+        dim3 dimBlock(block_size, block_size);
+        dim3 dimGrid(w, h);
+
+        size_t pitch;
+        int *d_weightsUp, *d_weightsDown, *d_weightsLeft, *d_weightsRight,
+            *d_excessFlows;
+
+        uint32_t *d_heights, *d_heightsTemp;
+
+        cudaMallocPitch((void **) &d_weightsUp, &pitch, width * sizeof(int),
+            height);
+        cudaMallocPitch((void **) &d_weightsDown, &pitch, width * sizeof(int),
+            height);
+        cudaMallocPitch((void **) &d_weightsLeft, &pitch, width * sizeof(int),
+            height);
+        cudaMallocPitch((void **) &d_weightsRight, &pitch, width * sizeof(int),
+            height);
+        cudaMallocPitch((void **) &d_excessFlows, &pitch, width * sizeof(int),
+            height);
+
+        cudaMallocPitch((void **) &d_heights, &pitch, width * sizeof(int),
+            height);
+        cudaMallocPitch((void **) &d_heightsTemp, &pitch, width * sizeof(int),
+            height);
+
+        cudaMemcpy2D(d_weightsUp, pitch, weightsUp, width * sizeof(int),
+            width * sizeof(int), height, cudaMemcpyHostToDevice);
+        cudaMemcpy2D(d_weightsDown, pitch, weightsDown, width * sizeof(int),
+            width * sizeof(int), height, cudaMemcpyHostToDevice);
+        cudaMemcpy2D(d_weightsLeft, pitch, weightsLeft, width * sizeof(int),
+            width * sizeof(int), height, cudaMemcpyHostToDevice);
+        cudaMemcpy2D(d_weightsRight, pitch, weightsRight, width * sizeof(int),
+            width * sizeof(int), height, cudaMemcpyHostToDevice);
+        cudaMemcpy2D(d_excessFlows, pitch, excessFlows, width * sizeof(int),
+            width * sizeof(int), height, cudaMemcpyHostToDevice);
+
+        cudaMemcpy2D(d_heights, pitch, heights, width * sizeof(uint32_t),
+            width * sizeof(uint32_t), height, cudaMemcpyHostToDevice);
+        cudaMemcpy2D(d_heightsTemp, pitch, d_heights, pitch,
+            width * sizeof(uint32_t), height, cudaMemcpyDeviceToDevice);
+
         unsigned ip = 0;
 
-        while (ip < 1000 &&IsAnyActive(excessFlows, heights,width, height,
-            heightMax))
+        while (ip < 1000)
         {
             //std::cout << IsAnyActive(excessFlows, heights,width, height, heightMax) << "\n";
-            Relabel(excessFlows, weightsUp, weightsDown, weightsLeft,
-                weightsRight, heights, heights, heightMax,
-                width, height);
+            Relabel<<<dimGrid, dimBlock>>>(d_excessFlows,
+                d_weightsUp, d_weightsDown, d_weightsLeft, d_weightsRight,
+                d_heights, d_heightsTemp, heightMax,
+                width, height, pitch);
 
-            /*for (unsigned i = 0; i < height; ++i)
-            {
-                for (unsigned j = 0; j < width; ++j)
-                {
-                    heights[i * width + j] = heights_temp[i * width + j];
-                }
-            }*/
 
-            Push(excessFlows, weightsUp, weightsDown, weightsLeft,
-                weightsRight, heights, heightMax, width, height);
+            cudaMemcpy2D(d_heights, pitch, d_heightsTemp, pitch,
+                width * sizeof(uint32_t), height, cudaMemcpyDeviceToDevice);
+
+            Push<<<dimGrid, dimBlock>>>(d_excessFlows,
+                d_weightsUp, d_weightsDown, d_weightsLeft, d_weightsRight,
+                d_heights, heightMax, width, height, pitch);
             ip++;
             //std::cout << "new " << ip << "\n";
         }
 
-        /*for (unsigned i = 0; i < height; ++i)
-        {
-            for (unsigned j = 0; j< width; ++j)
-                std::cout << excessFlows[i * width + j] << " ";
-            std::cout << "\n";
-        }*/
-
+        cudaMemcpy2D(heights, width * sizeof(uint32_t), d_heights, pitch,
+            width * sizeof(uint32_t), height, cudaMemcpyDeviceToHost);
         SavePicture(heights, width, height, heightMax);
+
+        cudaFree(d_weightsUp);
+        cudaFree(d_weightsDown);
+        cudaFree(d_weightsLeft);
+        cudaFree(d_weightsRight);
+        cudaFree(d_excessFlows);
+        cudaFree(d_heights);
+        cudaFree(d_heightsTemp);
 
         free(bitmask);
         free(weightsUp);
