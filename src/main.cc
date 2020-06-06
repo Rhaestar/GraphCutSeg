@@ -1,4 +1,5 @@
 #include "implem.hh"
+#include "gpuimplem.hh"
 
 #include <CLI/CLI.hpp>
 #include <SDL2/SDL.h>
@@ -33,7 +34,10 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    CPU::Implem(image, mask);
+    if (mode == "CPU")
+        CPU::Implem(image, mask);
+    else
+        GPU::Implem(image, mask);
 
     SDL_FreeSurface(image);
     SDL_FreeSurface(mask);

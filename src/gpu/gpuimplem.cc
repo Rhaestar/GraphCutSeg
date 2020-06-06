@@ -1,4 +1,4 @@
-#include "implem.hh"
+#include "gpuimplem.hh"
 
 #include <cstdint>
 #include <iostream>
@@ -6,7 +6,7 @@
 #include <cfloat>
 #include "SDL.h"
 
-namespace CPU
+namespace GPU
 {
     void fillHists(Histogram& foreHist, Histogram& backHist, SDL_Surface* image,
         SDL_Surface* mask, uint8_t* bitmask)

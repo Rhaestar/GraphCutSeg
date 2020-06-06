@@ -1,4 +1,5 @@
 add_subdirectory(cpu/)
+add_subdirectory(gpu/)
 
 add_executable(graphcutseg
     main.cc)
@@ -6,11 +7,13 @@ add_executable(graphcutseg
 target_link_libraries(graphcutseg
     PUBLIC SDL2::SDL2 
     PUBLIC CLI11::CLI11
-    PRIVATE cpu)
+    PRIVATE cpu
+    PRIVATE gpu)
 #    PUBLIC -fsanitize=address)
 
 target_include_directories(graphcutseg
     PUBLIC ${CMAKE_SOURCE_DIR}/include/cpu
+    PUBLIC ${CMAKE_SOURCE_DIR}/include/gpu
     PUBLIC ${SDL2_INCLUDE_DIRS})
 
 add_custom_command(TARGET graphcutseg
