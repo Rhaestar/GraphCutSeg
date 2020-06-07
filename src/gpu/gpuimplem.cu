@@ -8,6 +8,13 @@
 
 namespace GPU
 {
+    template<typename T>
+    __device__ inline T* eltPtr(T *baseAddress, size_t col, size_t row,
+        size_t pitch)
+    {
+        return (T*)((char*)baseAddress + row * pitch + col * sizeof(T));
+    }
+
     void fillHists(Histogram& foreHist, Histogram& backHist, SDL_Surface* image,
         SDL_Surface* mask, uint8_t* bitmask)
     {
@@ -212,99 +219,110 @@ namespace GPU
         return ret;
     }
 
-    void Push(int* excessFlows, int* weightsUp, int* weightsDown,
+    __global__ void Push(int* excessFlows, int* weightsUp, int* weightsDown,
         int* weightsLeft, int* weightsRight, uint32_t* heights,
-        uint32_t heightMax, uint32_t width, uint32_t height)
+        uint32_t heightMax, uint32_t width, uint32_t height, size_t pitch)
     {
-        for (unsigned i = 0; i < height; ++i)
-        {
-            for (unsigned j = 0; j < width; ++j)
-            {
-                int currFlow = excessFlows[i * width + j];
-                uint32_t currHeight = heights[i * width + j];
+        size_t x = blockDim.x * blockIdx.x + threadIdx.x;
+        size_t y = blockDim.y * blockIdx.y + threadIdx.y;
 
-                if (currFlow > 0 && currHeight < heightMax)
-                {
-                    if (i > 0 && currHeight - 1 == heights[(i-1) * width + j])
-                    {
-                        int flow = std::min(currFlow,
-                            weightsUp[i * width + j]);
-                        excessFlows[i * width + j] -= flow;
-                        excessFlows[(i - 1) * width + j] += flow;
-                        weightsUp[i * width + j] -= flow;
-                        weightsDown[(i - 1) * width + j] += flow;
-                    }
-                    if (j > 0 && currHeight - 1 == heights[i * width + j - 1])
-                    {
-                        int flow = std::min(currFlow,
-                            weightsLeft[i * width + j]);
-                        excessFlows[i * width + j] -= flow;
-                        excessFlows[i * width + j - 1] += flow;
-                        weightsLeft[i * width + j] -= flow;
-                        weightsRight[i * width + j - 1] += flow;
-                    }
-                    if (i < height - 1 && currHeight - 1 == heights[(i+1) * width + j])
-                    {
-                        int flow = std::min(currFlow,
-                            weightsDown[i * width + j]);
-                        excessFlows[i * width + j] -= flow;
-                        excessFlows[(i+1) * width + j] += flow;
-                        weightsDown[i * width + j] -= flow;
-                        weightsUp[(i+1) * width + j] += flow;
-                    }
-                    if (j < width - 1 && currHeight - 1 == heights[i * width + j
-                        + 1])
-                    {
-                        int flow = std::min(currFlow,
-                            weightsRight[i * width + j]);
-                        excessFlows[i * width + j] -= flow;
-                        excessFlows[i * width + j + 1] += flow;
-                        weightsRight[i * width + j] -= flow;
-                        weightsLeft[i * width + j + 1] += flow;
-                    }
-                }
+        if (x >= width || y >= height)
+            return;
+
+        int* currFlow = eltPtr(excessFlows, x, y, pitch);
+        uint32_t currHeight = *eltPtr(heights, x, y, pitch);
+
+        if (*currFlow > 0 && currHeight < heightMax)
+        {
+            if (y > 0 && currHeight - 1 == *eltPtr(heights, x, y - 1, pitch))
+            {
+                int *wUp = eltPtr(weightsUp, x, y, pitch);
+                int *wDown = eltPtr(weightsUp, x, y - 1, pitch);
+                int *currFlowEx = eltPtr(excessFlows, x, y - 1, pitch);
+                int flow = min(*currFlow, *wUp);
+                atomicSub(currFlow, flow);
+                atomicSub(wUp, flow);
+                atomicAdd(wDown, flow);
+                atomicAdd(currFlowEx, flow);
+            }
+            if (x > 0 && currHeight - 1 == *eltPtr(heights, x - 1, y, pitch))
+            {
+                int *wLeft = eltPtr(weightsUp, x, y, pitch);
+                int *wRight = eltPtr(weightsUp, x - 1, y, pitch);
+                int *currFlowEx = eltPtr(excessFlows, x - 1, y, pitch);
+                int flow = min(*currFlow, *wLeft);
+                atomicSub(currFlow, flow);
+                atomicSub(wLeft, flow);
+                atomicAdd(wRight, flow);
+                atomicAdd(currFlowEx, flow);
+            }
+            if (y < height - 1 && currHeight - 1 == *eltPtr(heights, x, y + 1,
+                pitch))
+            {
+                int *wDown = eltPtr(weightsUp, x, y, pitch);
+                int *wUp = eltPtr(weightsUp, x, y + 1, pitch);
+                int *currFlowEx = eltPtr(excessFlows, x, y + 1, pitch);
+                int flow = min(*currFlow, *wUp);
+                atomicSub(currFlow, flow);
+                atomicSub(wDown, flow);
+                atomicAdd(wUp, flow);
+                atomicAdd(currFlowEx, flow);
+            }
+            if (x < width - 1 && currHeight - 1 == *eltPtr(heights, x + 1, y,
+                pitch))
+            {
+                int *wRight = eltPtr(weightsUp, x, y, pitch);
+                int *wLeft = eltPtr(weightsUp, x + 1, y, pitch);
+                int *currFlowEx = eltPtr(excessFlows, x + 1, y, pitch);
+                int flow = min(*currFlow, *wRight);
+                atomicSub(currFlow, flow);
+                atomicSub(wRight, flow);
+                atomicAdd(wLeft, flow);
+                atomicAdd(currFlowEx, flow);
             }
         }
     }
 
-    void Relabel(int* excessFlows,
+    __global__ void Relabel(int* excessFlows,
         int* weightsUp, int* weightsDown, int* weightsLeft,
         int* weightsRight, uint32_t* heights, uint32_t* heightsTemp,
-        uint32_t heightMax, unsigned width, unsigned height)
+        uint32_t heightMax, unsigned width, unsigned height, size_t pitch)
     {
-        for (unsigned i = 0; i < height; ++i)
-        {
-            for (unsigned j = 0; j < width; ++j)
-            {
-                int currFlow = excessFlows[i * width + j];
-                uint32_t currHeight = heights[i * width + j];
+        size_t x = blockDim.x * blockIdx.x + threadIdx.x;
+        size_t y = blockDim.y * blockIdx.y + threadIdx.y;
 
-                if (currFlow > 0 && currHeight < heightMax)
-                {
-                    uint32_t newHeight = heightMax;
-                    if (i > 0 && weightsUp[i * width + j] > 0)
-                    {
-                        newHeight = std::min(newHeight,
-                            heights[(i - 1) * width + j] + 1);
-                    }
-                    if (j > 0 && weightsLeft[i * width + j] > 0)
-                    {
-                        newHeight = std::min(newHeight,
-                            heights[i * width + j - 1] + 1);
-                    }
-                    if (i < height - 1 && weightsDown[i * width + j] > 0)
-                    {
-                        newHeight = std::min(newHeight,
-                            heights[(i + 1) * width + j] + 1);
-                    }
-                    if (j < width - 1 && weightsRight[i * width + j] > 0)
-                    {
-                        newHeight = std::min(newHeight,
-                            heights[i * width + j + 1] + 1);
-                    }
-                    heightsTemp[i * width + j] = newHeight;
-                }
+        if (x >= width || y >= height)
+            return;
+
+        int* currFlow = eltPtr(excessFlows, x, y, pitch);
+        uint32_t* currHeight = eltPtr(heights, x, y, pitch);
+        uint32_t* currHeightTemp = eltPtr(heightsTemp, x, y, pitch);
+
+        if (*currFlow > 0 && *currHeight < heightMax)
+        {
+            uint32_t newHeight = heightMax;
+            if (y > 0 && *eltPtr(weightsUp, x, y, pitch) > 0)
+            {
+                newHeight = min(newHeight, *eltPtr(heights, x, y - 1,
+                    pitch) + 1);
             }
+            if (x > 0 && *eltPtr(weightsLeft, x, y, pitch) > 0)
+            {
+                newHeight = min(newHeight, *eltPtr(heights, x - 1, y,
+                    pitch) + 1);
+            }
+            if (y < height - 1 && *eltPtr(weightsDown, x, y, pitch) > 0)
+            {
+                newHeight = min(newHeight, *eltPtr(heights, x, y + 1,
+                    pitch) + 1);
+            }
+            if (x < width - 1 && *eltPtr(weightsRight, x, y, pitch) > 0)
+            {
+                newHeight = min(newHeight, *eltPtr(heights, x + 1, y,
+                    pitch) + 1);
+            }
+
+            *currHeightTemp = newHeight;
         }
     }
 
@@ -419,6 +437,8 @@ namespace GPU
 
         unsigned ip = 0;
 
+        std::cout << "GPU Version\n";
+
         while (ip < 1000)
         {
             //std::cout << IsAnyActive(excessFlows, heights,width, height, heightMax) << "\n";
@@ -426,14 +446,20 @@ namespace GPU
                 d_weightsUp, d_weightsDown, d_weightsLeft, d_weightsRight,
                 d_heights, d_heightsTemp, heightMax,
                 width, height, pitch);
-
+            
+            cudaDeviceSynchronize();
 
             cudaMemcpy2D(d_heights, pitch, d_heightsTemp, pitch,
                 width * sizeof(uint32_t), height, cudaMemcpyDeviceToDevice);
 
+            cudaDeviceSynchronize();
+
             Push<<<dimGrid, dimBlock>>>(d_excessFlows,
                 d_weightsUp, d_weightsDown, d_weightsLeft, d_weightsRight,
                 d_heights, heightMax, width, height, pitch);
+
+            cudaDeviceSynchronize();
+
             ip++;
             //std::cout << "new " << ip << "\n";
         }
