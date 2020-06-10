@@ -7,9 +7,21 @@ project(GraphCutSeg
     LANGUAGES CUDA CXX)
 
 FetchContent_Declare(
+  GoogleBenchmark
+  URL https://github.com/google/benchmark/archive/v1.4.1.tar.gz
+  )
+
+FetchContent_Declare(
   CLI11
   URL https://github.com/CLIUtils/CLI11/archive/v1.8.0.tar.gz
   )
+
+if (NOT GoogleBenchmark_POPULATED)
+  FetchContent_Populate(GoogleBenchmark)
+  set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "From Gtest")
+  set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "From Gtest")
+  add_subdirectory(${googlebenchmark_SOURCE_DIR} ${googlebenchmark_BINARY_DIR})
+endif()
 
 FetchContent_MakeAvailable(CLI11)
 

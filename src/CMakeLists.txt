@@ -19,3 +19,16 @@ target_include_directories(graphcutseg
 add_custom_command(TARGET graphcutseg
     POST_BUILD
     COMMAND cp graphcutseg ..)
+
+add_executable(bench bench.cpp)
+
+target_link_libraries(bench 
+    PUBLIC SDL2::SDL2
+    PRIVATE benchmark
+    PRIVATE cpu
+    PRIVATE gpu)
+
+target_include_directories(bench
+    PUBLIC ${CMAKE_SOURCE_DIR}/include/cpu
+    PUBLIC ${CMAKE_SOURCE_DIR}/include/gpu
+    PUBLIC ${SDL2_INCLUDE_DIRS})
