@@ -55,8 +55,6 @@ int main(int argc, char **argv)
 
     ::benchmark::Initialize(&argc, argv);
     
-    std::cout << "argv : " << argv[1] << "\n";
-    
     if (argc < 3)
     {
         std::cout << "USAGE: bench input_file mask_file\n";
