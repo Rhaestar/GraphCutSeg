@@ -221,7 +221,8 @@ namespace GPU
 
     __global__ void Push(int* excessFlows, int* weightsUp, int* weightsDown,
         int* weightsLeft, int* weightsRight, uint32_t* heights,
-        uint32_t heightMax, uint32_t width, uint32_t height, size_t pitch)
+        uint32_t heightMax, uint32_t width, uint32_t height, size_t pitch, 
+        bool* isAnyActive)
     {
         size_t x = blockDim.x * blockIdx.x + threadIdx.x;
         size_t y = blockDim.y * blockIdx.y + threadIdx.y;
@@ -280,6 +281,9 @@ namespace GPU
                 atomicAdd(wLeft, flow);
                 atomicAdd(currFlowEx, flow);
             }
+
+            if (*currFlow > 0)
+                *isAnyActive = true;
         }
     }
 
@@ -437,11 +441,18 @@ namespace GPU
 
         unsigned ip = 0;
 
-        std::cout << "GPU Version\n";
+        bool isAnyActive = true;
+        bool falseUtil = false;
+        bool *d_isAnyActive;
+        cudaMalloc((void**) &d_isAnyActive, sizeof(bool));
+        cudaMemcpy(d_isAnyActive, &falseUtil, sizeof(bool),
+            cudaMemcpyHostToDevice);
 
-        while (ip < 1000)
+        while (ip < 1000 && isAnyActive)
         {
-            //std::cout << IsAnyActive(excessFlows, heights,width, height, heightMax) << "\n";
+            cudaMemcpy(d_isAnyActive, &falseUtil, sizeof(bool),
+                cudaMemcpyHostToDevice);
+
             Relabel<<<dimGrid, dimBlock>>>(d_excessFlows,
                 d_weightsUp, d_weightsDown, d_weightsLeft, d_weightsRight,
                 d_heights, d_heightsTemp, heightMax,
@@ -456,13 +467,15 @@ namespace GPU
 
             Push<<<dimGrid, dimBlock>>>(d_excessFlows,
                 d_weightsUp, d_weightsDown, d_weightsLeft, d_weightsRight,
-                d_heights, heightMax, width, height, pitch);
+                d_heights, heightMax, width, height, pitch, d_isAnyActive);
 
             cudaDeviceSynchronize();
 
+            cudaMemcpy(&isAnyActive, d_isAnyActive, sizeof(bool),
+                cudaMemcpyDeviceToHost);
             ip++;
-            //std::cout << "new " << ip << "\n";
         }
+        //std::cout << "new " << ip << "\n";
 
         cudaMemcpy2D(heights, width * sizeof(uint32_t), d_heights, pitch,
             width * sizeof(uint32_t), height, cudaMemcpyDeviceToHost);

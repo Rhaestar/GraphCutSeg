@@ -32,3 +32,8 @@ target_include_directories(bench
     PUBLIC ${CMAKE_SOURCE_DIR}/include/cpu
     PUBLIC ${CMAKE_SOURCE_DIR}/include/gpu
     PUBLIC ${SDL2_INCLUDE_DIRS})
+
+add_custom_command(TARGET bench
+    POST_BUILD
+    COMMAND cp bench ..)
+

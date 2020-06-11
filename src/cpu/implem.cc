@@ -359,8 +359,8 @@ namespace CPU
 
         uint32_t* heights = (uint32_t*)calloc(height * width,
             sizeof(uint32_t));
-        //uint32_t* heights_temp = (uint32_t*)calloc(height * width,
-        //    sizeof(uint32_t));
+        uint32_t* heights_temp = (uint32_t*)calloc(height * width,
+            sizeof(uint32_t));
 
         int* excessFlows = (int*)calloc(height * width, sizeof(int));
 
@@ -381,22 +381,22 @@ namespace CPU
         {
             //std::cout << IsAnyActive(excessFlows, heights,width, height, heightMax) << "\n";
             Relabel(excessFlows, weightsUp, weightsDown, weightsLeft,
-                weightsRight, heights, heights, heightMax,
+                weightsRight, heights, heights_temp, heightMax,
                 width, height);
 
-            /*for (unsigned i = 0; i < height; ++i)
+            for (unsigned i = 0; i < height; ++i)
             {
                 for (unsigned j = 0; j < width; ++j)
                 {
                     heights[i * width + j] = heights_temp[i * width + j];
                 }
-            }*/
+            }
 
             Push(excessFlows, weightsUp, weightsDown, weightsLeft,
                 weightsRight, heights, heightMax, width, height);
             ip++;
-            //std::cout << "new " << ip << "\n";
         }
+        //std::cout << "new " << ip << "\n";
 
         /*for (unsigned i = 0; i < height; ++i)
         {
@@ -413,6 +413,7 @@ namespace CPU
         free(weightsLeft);
         free(weightsRight);
         free(heights);
+        free(heights_temp);
         free(excessFlows);
 
     }
