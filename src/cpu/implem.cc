@@ -326,7 +326,7 @@ namespace CPU
             {
                 uint32_t* pixel = (uint32_t*)(pixels + i * image->pitch +
                     j * 4);
-                if (heights[i * width + j] > maxHeight - maxHeight)
+                if (heights[i * width + j] > maxHeight - maxHeight / 3.f)
                     *pixel = SDL_MapRGBA(fmt, 255, 255, 255, 255);
                 else
                     *pixel = SDL_MapRGBA(fmt, 0, 0, 0, 255);
@@ -345,10 +345,10 @@ namespace CPU
 
         uint32_t width = image->w;
         uint32_t height = image->h;
-        uint32_t heightMax = 100;
-        float sigma = 5.f;
-        float lambda = 10.f;
-        int param = 1;
+        uint32_t heightMax = 10;
+        float sigma = 10.f;
+        float lambda = 1.f;
+        int param = 10;
 
         uint8_t* bitmask = (uint8_t*)calloc(height * width, sizeof(uint8_t));
 
