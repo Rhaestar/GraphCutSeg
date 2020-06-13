@@ -8,6 +8,13 @@
 
 namespace GPU
 {
+    template<typename T>
+    __device__ inline T* eltPtr(T *baseAddress, size_t col, size_t row,
+        size_t pitch)
+    {
+        return (T*)((char*)baseAddress + row * pitch + col * sizeof(T));
+    }
+
     void fillHists(Histogram& foreHist, Histogram& backHist, SDL_Surface* image,
         SDL_Surface* mask, uint8_t* bitmask)
     {
@@ -212,101 +219,71 @@ namespace GPU
         return ret;
     }
 
-#define K 4
-#define BLOCK_SIZE 32
-#define TILE_SIZE (BLOCK_SIZE + 2)
-
-    template<typename T>
-    __device__ inline T* eltPtr(T *baseAddress, size_t col, size_t row,
-        size_t pitch)
-    {
-        return (T*)((char*)baseAddress + row * pitch + col * sizeof(T));
-    }
-
     __global__ void Push(int* excessFlows, int* weightsUp, int* weightsDown,
         int* weightsLeft, int* weightsRight, uint32_t* heights,
-        uint32_t heightMax, uint32_t width, uint32_t height, size_t pitch)
+        uint32_t heightMax, uint32_t width, uint32_t height, size_t pitch, 
+        bool* isAnyActive)
     {
-
-        //Collaborative loading
-        __shared__ int s_excess[BLOCK_SIZE][BLOCK_SIZE];
-
         size_t x = blockDim.x * blockIdx.x + threadIdx.x;
-        size_t y = blockDim.x * blockIdx.y + threadIdx.y * K;
+        size_t y = blockDim.y * blockIdx.y + threadIdx.y;
 
-        size_t x_tile = threadIdx.x;
-        size_t y_tile = threadIdx.y * K;
-
-        if (x >= height || y >= width)
+        if (x >= width || y >= height)
             return;
 
-        for (size_t i = 0; i < K && y + i < width; i++)
-        {
-            s_excess[x_tile][y_tile + i] =
-                *eltPtr(excessFlows, y + i, x, pitch); 
-        }
+        int* currFlow = eltPtr(excessFlows, x, y, pitch);
+        uint32_t currHeight = *eltPtr(heights, x, y, pitch);
 
-        __syncthreads();
+        if (*currFlow > 0 && currHeight < heightMax)
+        {
+            if (y > 0 && currHeight - 1 == *eltPtr(heights, x, y - 1, pitch))
+            {
+                int *wUp = eltPtr(weightsUp, x, y, pitch);
+                int *wDown = eltPtr(weightsUp, x, y - 1, pitch);
+                int *currFlowEx = eltPtr(excessFlows, x, y - 1, pitch);
+                int flow = min(*currFlow, *wUp);
+                atomicSub(currFlow, flow);
+                atomicSub(wUp, flow);
+                atomicAdd(wDown, flow);
+                atomicAdd(currFlowEx, flow);
+            }
+            if (x > 0 && currHeight - 1 == *eltPtr(heights, x - 1, y, pitch))
+            {
+                int *wLeft = eltPtr(weightsUp, x, y, pitch);
+                int *wRight = eltPtr(weightsUp, x - 1, y, pitch);
+                int *currFlowEx = eltPtr(excessFlows, x - 1, y, pitch);
+                int flow = min(*currFlow, *wLeft);
+                atomicSub(currFlow, flow);
+                atomicSub(wLeft, flow);
+                atomicAdd(wRight, flow);
+                atomicAdd(currFlowEx, flow);
+            }
+            if (y < height - 1 && currHeight - 1 == *eltPtr(heights, x, y + 1,
+                pitch))
+            {
+                int *wDown = eltPtr(weightsUp, x, y, pitch);
+                int *wUp = eltPtr(weightsUp, x, y + 1, pitch);
+                int *currFlowEx = eltPtr(excessFlows, x, y + 1, pitch);
+                int flow = min(*currFlow, *wUp);
+                atomicSub(currFlow, flow);
+                atomicSub(wDown, flow);
+                atomicAdd(wUp, flow);
+                atomicAdd(currFlowEx, flow);
+            }
+            if (x < width - 1 && currHeight - 1 == *eltPtr(heights, x + 1, y,
+                pitch))
+            {
+                int *wRight = eltPtr(weightsUp, x, y, pitch);
+                int *wLeft = eltPtr(weightsUp, x + 1, y, pitch);
+                int *currFlowEx = eltPtr(excessFlows, x + 1, y, pitch);
+                int flow = min(*currFlow, *wRight);
+                atomicSub(currFlow, flow);
+                atomicSub(wRight, flow);
+                atomicAdd(wLeft, flow);
+                atomicAdd(currFlowEx, flow);
+            }
 
-        //Flow propagation
-
-        //RIGHT
-        int ef = 0;
-        for (size_t i = 0; i < K && y + i < width; i++)
-        {
-            ef += s_excess[x_tile][y_tile + i];
-            int *wRight = eltPtr(weightsRight, y + i, x, pitch);
-            int flow = min(*wRight, ef);
-            *wRight -= flow;
-            s_excess[x_tile][y_tile + i] = ef - flow;
-            ef = flow;
-        }
-        
-        //DOWN
-        ef = 0;
-        for (size_t i = 0; i < K && y + i < height; i++)
-        {
-            ef += s_excess[y_tile + i ][x_tile];
-            int *wDown = eltPtr(weightsDown, x, y + i, pitch);
-            int flow = min(*wDown, ef);
-            *wDown -= flow;
-            s_excess[y_tile + i][x_tile] = ef - flow;
-            ef = flow;
-        }
-        
-        //LEFT
-        ef = 0;
-        /*for (size_t i = 1; i <= K; i++)
-        {
-            while (y + K - i >= width)
-                i++;
-            ef += s_excess[x_tile][y_tile + K - i];
-            int *wLeft = eltPtr(weightsLeft, y + K - i, x, pitch);
-            int flow = min(*wLeft, ef);
-            *wLeft -= flow;
-            s_excess[x_tile][y_tile + K - i] = ef - flow;
-            ef = flow;
-        }
-        //UP
-        ef = 0;
-        for (size_t i = 1; i <= K; i++)
-        {
-            while (y + K - i >= height)
-                i++;
-            ef += s_excess[y_tile + K - i][x_tile];
-            int *wUp = eltPtr(weightsUp, x, y + K - i, pitch);
-            int flow = min(*wUp, ef);
-            *wUp -= flow;
-            s_excess[y_tile + K - i][x_tile] = ef - flow;
-            ef = flow;
-        }*/
-        __syncthreads();
-
-        //Collaborative unloading
-
-        for (size_t i = 0; i < K && y + i < width; i++)
-        {
-            *eltPtr(excessFlows, y + i, x, pitch) = s_excess[x_tile][y_tile + i]; 
+            if (*currFlow > 0)
+                *isAnyActive = true;
         }
     }
 
@@ -353,27 +330,6 @@ namespace GPU
         }
     }
 
-    __global__ void isActive(int* excessFlows, uint32_t* heights,
-        uint32_t heightMax, unsigned width, unsigned height, size_t pitch,
-        int* isAnyActive)
-    {
-        size_t x = blockDim.x * blockIdx.x + threadIdx.x;
-        size_t y = blockDim.y * blockIdx.y + threadIdx.y;
-
-        if (x >= width || y >= height)
-            return;
-
-        int* currFlow = eltPtr(excessFlows, x, y, pitch);
-        //uint32_t* currHeight = eltPtr(heights, x, y, pitch);
-
-        if (*currFlow > 0  /* && *currHeight < heightMax*/)
-        {
-//            *currFlow += 1;
-            //atomicAdd(isAnyActive, 1);
-        }
-    }
-
-
     void SavePicture(uint32_t* heights, uint32_t width, uint32_t height,
         uint32_t maxHeight)
     {
@@ -392,7 +348,7 @@ namespace GPU
             {
                 uint32_t* pixel = (uint32_t*)(pixels + i * image->pitch +
                     j * 4);
-                if (heights[i * width + j] > maxHeight - maxHeight)
+                if (heights[i * width + j] > maxHeight - maxHeight / 3.f)
                     *pixel = SDL_MapRGBA(fmt, 255, 255, 255, 255);
                 else
                     *pixel = SDL_MapRGBA(fmt, 0, 0, 0, 255);
@@ -411,10 +367,10 @@ namespace GPU
 
         uint32_t width = image->w;
         uint32_t height = image->h;
-        uint32_t heightMax = 100;
-        float sigma = 5.f;
-        float lambda = 10.f;
-        int param = 1;
+        uint32_t heightMax = 10;
+        float sigma = 10.f;
+        float lambda = 1.f;
+        int param = 10;
 
         uint8_t* bitmask = (uint8_t*)calloc(height * width, sizeof(uint8_t));
 
@@ -438,11 +394,11 @@ namespace GPU
         InitializeExcess(excessFlows, image, foreHist, backHist, bitmask,
             maxCap, lambda);
 
-        int w = std::ceil((float)width / BLOCK_SIZE);
-        int h = std::ceil((float)height / BLOCK_SIZE);
+        int block_size = 32;
+        int w = std::ceil((float)width / block_size);
+        int h = std::ceil((float)width / block_size);
 
-        dim3 dimBlockP(BLOCK_SIZE, BLOCK_SIZE / K);
-        dim3 dimBlockR(BLOCK_SIZE, BLOCK_SIZE);
+        dim3 dimBlock(block_size, block_size);
         dim3 dimGrid(w, h);
 
         size_t pitch;
@@ -485,22 +441,19 @@ namespace GPU
 
         unsigned ip = 0;
 
-        int isAnyActive = 1;
-        int falseUtil = 0;
-        int *d_isAnyActive;
-        cudaMalloc((void**) &d_isAnyActive, sizeof(int));
+        bool isAnyActive = true;
+        bool falseUtil = false;
+        bool *d_isAnyActive;
+        cudaMalloc((void**) &d_isAnyActive, sizeof(bool));
+        cudaMemcpy(d_isAnyActive, &falseUtil, sizeof(bool),
+            cudaMemcpyHostToDevice);
 
-        while (ip < 1000 && isAnyActive > 0)
+        while (ip < 1000 && isAnyActive)
         {
-            isActive<<<dimGrid, dimBlockP>>>(excessFlows, heights, heightMax,
-                width, height, pitch, d_isAnyActive);
-
-            cudaDeviceSynchronize();
-
-            cudaMemcpy(d_isAnyActive, &falseUtil, sizeof(int),
+            cudaMemcpy(d_isAnyActive, &falseUtil, sizeof(bool),
                 cudaMemcpyHostToDevice);
 
-            Relabel<<<dimGrid, dimBlockR>>>(d_excessFlows,
+            Relabel<<<dimGrid, dimBlock>>>(d_excessFlows,
                 d_weightsUp, d_weightsDown, d_weightsLeft, d_weightsRight,
                 d_heights, d_heightsTemp, heightMax,
                 width, height, pitch);
@@ -512,13 +465,13 @@ namespace GPU
 
             cudaDeviceSynchronize();
 
-            Push<<<dimGrid, dimBlockP>>>(d_excessFlows,
+            Push<<<dimGrid, dimBlock>>>(d_excessFlows,
                 d_weightsUp, d_weightsDown, d_weightsLeft, d_weightsRight,
-                d_heights, heightMax, width, height, pitch);
-            
+                d_heights, heightMax, width, height, pitch, d_isAnyActive);
+
             cudaDeviceSynchronize();
 
-            cudaMemcpy(&isAnyActive, d_isAnyActive, sizeof(int),
+            cudaMemcpy(&isAnyActive, d_isAnyActive, sizeof(bool),
                 cudaMemcpyDeviceToHost);
             ip++;
         }
