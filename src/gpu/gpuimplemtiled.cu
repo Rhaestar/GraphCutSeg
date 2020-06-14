@@ -368,7 +368,7 @@ namespace GPU
 
         if (*currFlow > 0 && *currHeight < heightMax)
         {
-            atomicAdd(currFlow, 1);
+            *isAnyActive = 1;
         }
     }
 
@@ -391,7 +391,7 @@ namespace GPU
             {
                 uint32_t* pixel = (uint32_t*)(pixels + i * image->pitch +
                     j * 4);
-                if (heights[i * width + j] > maxHeight - maxHeight)
+                if (heights[i * width + j] > maxHeight - maxHeight / 2)
                     *pixel = SDL_MapRGBA(fmt, 255, 255, 255, 255);
                 else
                     *pixel = SDL_MapRGBA(fmt, 0, 0, 0, 255);
@@ -520,7 +520,7 @@ namespace GPU
 
             cudaMemcpy(&isAnyActive, d_isAnyActive, sizeof(int),
                 cudaMemcpyDeviceToHost);
-            std::cout << "new " << isAnyActive << "\n";
+            //std::cout << "new " << isAnyActive << "\n";
             ip++;
         }
 
