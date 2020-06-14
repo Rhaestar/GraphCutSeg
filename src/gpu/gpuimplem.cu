@@ -222,7 +222,7 @@ namespace GPU
     __global__ void Push(int* excessFlows, int* weightsUp, int* weightsDown,
         int* weightsLeft, int* weightsRight, uint32_t* heights,
         uint32_t heightMax, uint32_t width, uint32_t height, size_t pitch, 
-        bool* isAnyActive)
+        int* isAnyActive)
     {
         size_t x = blockDim.x * blockIdx.x + threadIdx.x;
         size_t y = blockDim.y * blockIdx.y + threadIdx.y;
@@ -283,7 +283,7 @@ namespace GPU
             }
 
             if (*currFlow > 0)
-                *isAnyActive = true;
+                atomicAdd(isAnyActive,1);
         }
     }
 
@@ -367,10 +367,10 @@ namespace GPU
 
         uint32_t width = image->w;
         uint32_t height = image->h;
-        uint32_t heightMax = 10;
+        uint32_t heightMax = 100;
         float sigma = 10.f;
         float lambda = 1.f;
-        int param = 10;
+        int param = 1;
 
         uint8_t* bitmask = (uint8_t*)calloc(height * width, sizeof(uint8_t));
 
@@ -441,16 +441,14 @@ namespace GPU
 
         unsigned ip = 0;
 
-        bool isAnyActive = true;
-        bool falseUtil = false;
-        bool *d_isAnyActive;
-        cudaMalloc((void**) &d_isAnyActive, sizeof(bool));
-        cudaMemcpy(d_isAnyActive, &falseUtil, sizeof(bool),
-            cudaMemcpyHostToDevice);
+        int isAnyActive = 1;
+        int falseUtil = 0;
+        int *d_isAnyActive;
+        cudaMalloc((void**) &d_isAnyActive, sizeof(int));
 
-        while (ip < 1000 && isAnyActive)
+        while (ip < 1000 && isAnyActive != 0)
         {
-            cudaMemcpy(d_isAnyActive, &falseUtil, sizeof(bool),
+            cudaMemcpy(d_isAnyActive, &falseUtil, sizeof(int),
                 cudaMemcpyHostToDevice);
 
             Relabel<<<dimGrid, dimBlock>>>(d_excessFlows,
@@ -471,11 +469,10 @@ namespace GPU
 
             cudaDeviceSynchronize();
 
-            cudaMemcpy(&isAnyActive, d_isAnyActive, sizeof(bool),
+            cudaMemcpy(&isAnyActive, d_isAnyActive, sizeof(int),
                 cudaMemcpyDeviceToHost);
             ip++;
         }
-        //std::cout << "new " << ip << "\n";
 
         cudaMemcpy2D(heights, width * sizeof(uint32_t), d_heights, pitch,
             width * sizeof(uint32_t), height, cudaMemcpyDeviceToHost);
