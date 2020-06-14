@@ -202,8 +202,6 @@ namespace CPU
             for (uint32_t j = 0; j < width; ++j)
             {
                 bool test1 = excessFlows[i * width + j] > 0;
-                int it = excessFlows[i * width + j];
-                it += 1;
                 bool test2 = heights[i * width + j] < heightMax;
                 if (test1 && test2)
                     ret++;
@@ -326,7 +324,7 @@ namespace CPU
             {
                 uint32_t* pixel = (uint32_t*)(pixels + i * image->pitch +
                     j * 4);
-                if (heights[i * width + j] > maxHeight - maxHeight / 3.f)
+                if (heights[i * width + j] > maxHeight - maxHeight / 2.f)
                     *pixel = SDL_MapRGBA(fmt, 255, 255, 255, 255);
                 else
                     *pixel = SDL_MapRGBA(fmt, 0, 0, 0, 255);
@@ -345,10 +343,10 @@ namespace CPU
 
         uint32_t width = image->w;
         uint32_t height = image->h;
-        uint32_t heightMax = 10;
+        uint32_t heightMax = 100;
         float sigma = 10.f;
-        float lambda = 1.f;
-        int param = 10;
+        float lambda = 10.f;
+        int param = 1;
 
         uint8_t* bitmask = (uint8_t*)calloc(height * width, sizeof(uint8_t));
 
