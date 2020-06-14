@@ -308,8 +308,7 @@ namespace CPU
         }
     }
 
-    void SavePicture(bool* visited, uint32_t width, uint32_t height,
-        uint32_t)
+    void SavePicture(bool* visited, uint32_t width, uint32_t height)
     {
         SDL_Surface *image;
 
@@ -463,7 +462,7 @@ namespace CPU
 
         InitBFS(visited, bitmask, excessFlows, width, height);
 
-        SavePicture(visited, width, height, heightMax);
+        SavePicture(visited, width, height);
 
         free(bitmask);
         free(weightsUp);
