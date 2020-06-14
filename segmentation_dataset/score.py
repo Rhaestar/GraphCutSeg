@@ -24,17 +24,15 @@ def main():
         img_gpu = to_grayscale(imread(os.path.join(
             PATH_TO_OUTPUTS, "gpu_" + d + ".bmp")).astype(float))
         print(d)
-        dist_cpu = compare_images(img_cpu, expected)
-        print("CPU Euclidean distance:", dist_cpu)
-        dist_gpu = compare_images(img_gpu, expected)
-        print("GPU Euclidean distance:", dist_gpu)
-        print("MEAN Euclidean distance:", (dist_cpu + dist_gpu) / 2)
+        cpu = compare_images(img_cpu, expected)
+        print("CPU Score:", cpu)
+        gpu = compare_images(img_gpu, expected)
+        print("GPU Score:", gpu)
+        print("MEAN Score:", (cpu + gpu) / 2)
         print("-------------------------------------------")
 
 def compare_images(img1, img2):
-    img1 = img1/np.linalg.norm(img1)
-    img2 = img2/np.linalg.norm(img2)
-    return np.linalg.norm(img1 - img2)
+    return np.sum(img1 == img2) / img2.size
 
 def to_grayscale(arr):
     if len(arr.shape) == 3:
