@@ -377,7 +377,6 @@ namespace CPU
         while (ip < 1000 &&IsAnyActive(excessFlows, heights,width, height,
             heightMax))
         {
-            //std::cout << IsAnyActive(excessFlows, heights,width, height, heightMax) << "\n";
             Relabel(excessFlows, weightsUp, weightsDown, weightsLeft,
                 weightsRight, heights, heights_temp, heightMax,
                 width, height);
@@ -394,15 +393,6 @@ namespace CPU
                 weightsRight, heights, heightMax, width, height);
             ip++;
         }
-        //std::cout << "new " << ip << "\n";
-
-        /*for (unsigned i = 0; i < height; ++i)
-        {
-            for (unsigned j = 0; j< width; ++j)
-                std::cout << excessFlows[i * width + j] << " ";
-            std::cout << "\n";
-        }*/
-
         SavePicture(heights, width, height, heightMax);
 
         free(bitmask);
