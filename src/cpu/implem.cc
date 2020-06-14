@@ -4,6 +4,8 @@
 #include <iostream>
 #include <cstdlib>
 #include <cfloat>
+#include <queue>
+#include <utility>
 #include "SDL.h"
 
 namespace CPU
@@ -306,8 +308,8 @@ namespace CPU
         }
     }
 
-    void SavePicture(uint32_t* heights, uint32_t width, uint32_t height,
-        uint32_t maxHeight)
+    void SavePicture(bool* visited, uint32_t width, uint32_t height,
+        uint32_t)
     {
         SDL_Surface *image;
 
@@ -324,7 +326,7 @@ namespace CPU
             {
                 uint32_t* pixel = (uint32_t*)(pixels + i * image->pitch +
                     j * 4);
-                if (heights[i * width + j] > maxHeight - maxHeight / 2.f)
+                if (visited[i * width + j])
                     *pixel = SDL_MapRGBA(fmt, 255, 255, 255, 255);
                 else
                     *pixel = SDL_MapRGBA(fmt, 0, 0, 0, 255);
@@ -336,6 +338,69 @@ namespace CPU
         SDL_SaveBMP(image, "output.bmp");
     }
 
+    void BFS(bool* visited, std::queue<std::pair<unsigned,unsigned>> queue,
+        int *excessFlows, uint32_t width, uint32_t height)
+    {
+        while(!queue.empty())
+        {
+            auto p = queue.front();
+            queue.pop();
+
+            unsigned i = p.first;
+            unsigned j = p.second;
+
+            unsigned index = i * width + j;
+
+            if (visited[index])
+                continue;
+
+            visited[index] = true;
+
+            if (i > 0 && excessFlows[(i - 1) * width + j] > 0)
+            {
+                std::pair<unsigned, unsigned> p2(i - 1, j);
+                queue.push(p2);
+            }
+            if (j > 0 && excessFlows[i * width + j - 1] > 0)
+            {
+                std::pair<unsigned, unsigned> p2(i, j - 1);
+                queue.push(p2);
+            }
+            if (i < height - 1 && excessFlows[(i + 1) * width + j] > 0)
+            {
+                std::pair<unsigned, unsigned> p2(i + 1, j);
+                queue.push(p2);
+            }
+            if (j < width - 1 && excessFlows[i * width + j + 1] > 0)
+            {
+                std::pair<unsigned, unsigned> p2(i, j + 1);
+                queue.push(p2);
+            }
+
+
+        }
+    }
+
+
+    void InitBFS(bool* visited, uint8_t* bitmask,
+        int *excessFlows, uint32_t width, uint32_t height)
+    {
+        std::queue<std::pair<unsigned, unsigned>> queue;
+        for (unsigned i = 0; i < height; ++i)
+        {
+            for (unsigned j = 0; j < width; ++j)
+            {
+                if (bitmask[i * width + j] == 1)
+                {
+                    std::pair<unsigned, unsigned> p(i, j);
+                    queue.push(p);
+                }
+            }
+        }
+
+        BFS(visited, queue, excessFlows, width, height);
+    }
+
     void Implem(SDL_Surface* image, SDL_Surface* mask)
     {
         Histogram backHist;
@@ -343,10 +408,10 @@ namespace CPU
 
         uint32_t width = image->w;
         uint32_t height = image->h;
-        uint32_t heightMax = 100;
-        float sigma = 10.f;
-        float lambda = 10.f;
-        int param = 1;
+        uint32_t heightMax = 15;
+        float sigma = 50.f;
+        float lambda = 1.f;
+        int param = 10;
 
         uint8_t* bitmask = (uint8_t*)calloc(height * width, sizeof(uint8_t));
 
@@ -354,6 +419,8 @@ namespace CPU
         int* weightsDown  = (int*)calloc(height * width, sizeof(int));
         int* weightsLeft  = (int*)calloc(height * width, sizeof(int));
         int* weightsRight = (int*)calloc(height * width, sizeof(int));
+
+        bool* visited = (bool*)calloc(height * width, sizeof(uint8_t));
 
         uint32_t* heights = (uint32_t*)calloc(height * width,
             sizeof(uint32_t));
@@ -393,7 +460,10 @@ namespace CPU
                 weightsRight, heights, heightMax, width, height);
             ip++;
         }
-        SavePicture(heights, width, height, heightMax);
+
+        InitBFS(visited, bitmask, excessFlows, width, height);
+
+        SavePicture(visited, width, height, heightMax);
 
         free(bitmask);
         free(weightsUp);

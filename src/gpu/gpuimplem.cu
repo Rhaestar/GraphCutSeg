@@ -4,6 +4,8 @@
 #include <iostream>
 #include <cstdlib>
 #include <cfloat>
+#include <utility>
+#include <queue>
 #include "SDL.h"
 
 namespace GPU
@@ -209,8 +211,6 @@ namespace GPU
             for (uint32_t j = 0; j < width; ++j)
             {
                 bool test1 = excessFlows[i * width + j] > 0;
-                int it = excessFlows[i * width + j];
-                it += 1;
                 bool test2 = heights[i * width + j] < heightMax;
                 if (test1 && test2)
                     ret++;
@@ -330,8 +330,9 @@ namespace GPU
         }
     }
 
-    void SavePicture(uint32_t* heights, uint32_t width, uint32_t height,
-        uint32_t maxHeight)
+
+    void SavePicture(bool* visited, uint32_t width, uint32_t height,
+        uint32_t)
     {
         SDL_Surface *image;
 
@@ -348,7 +349,7 @@ namespace GPU
             {
                 uint32_t* pixel = (uint32_t*)(pixels + i * image->pitch +
                     j * 4);
-                if (heights[i * width + j] > maxHeight - maxHeight / 3.f)
+                if (visited[i * width + j])
                     *pixel = SDL_MapRGBA(fmt, 255, 255, 255, 255);
                 else
                     *pixel = SDL_MapRGBA(fmt, 0, 0, 0, 255);
@@ -360,6 +361,69 @@ namespace GPU
         SDL_SaveBMP(image, "output.bmp");
     }
 
+    void BFS(bool* visited, std::queue<std::pair<unsigned,unsigned>> queue,
+        int *excessFlows, uint32_t width, uint32_t height)
+    {
+        while(!queue.empty())
+        {
+            auto p = queue.front();
+            queue.pop();
+
+            unsigned i = p.first;
+            unsigned j = p.second;
+
+            unsigned index = i * width + j;
+
+            if (visited[index])
+                continue;
+
+            visited[index] = true;
+
+            if (i > 0 && excessFlows[(i - 1) * width + j] > 0)
+            {
+                std::pair<unsigned, unsigned> p2(i - 1, j);
+                queue.push(p2);
+            }
+            if (j > 0 && excessFlows[i * width + j - 1] > 0)
+            {
+                std::pair<unsigned, unsigned> p2(i, j - 1);
+                queue.push(p2);
+            }
+            if (i < height - 1 && excessFlows[(i + 1) * width + j] > 0)
+            {
+                std::pair<unsigned, unsigned> p2(i + 1, j);
+                queue.push(p2);
+            }
+            if (j < width - 1 && excessFlows[i * width + j + 1] > 0)
+            {
+                std::pair<unsigned, unsigned> p2(i, j + 1);
+                queue.push(p2);
+            }
+
+
+        }
+    }
+
+
+    void InitBFS(bool* visited, uint8_t* bitmask,
+        int *excessFlows, uint32_t width, uint32_t height)
+    {
+        std::queue<std::pair<unsigned, unsigned>> queue;
+        for (unsigned i = 0; i < height; ++i)
+        {
+            for (unsigned j = 0; j < width; ++j)
+            {
+                if (bitmask[i * width + j] == 1)
+                {
+                    std::pair<unsigned, unsigned> p(i, j);
+                    queue.push(p);
+                }
+            }
+        }
+
+        BFS(visited, queue, excessFlows, width, height);
+    }
+
     void Implem(SDL_Surface* image, SDL_Surface* mask)
     {
         Histogram backHist;
@@ -367,10 +431,10 @@ namespace GPU
 
         uint32_t width = image->w;
         uint32_t height = image->h;
-        uint32_t heightMax = 100;
+        uint32_t heightMax = 10;
         float sigma = 10.f;
         float lambda = 1.f;
-        int param = 1;
+        int param = 10;
 
         uint8_t* bitmask = (uint8_t*)calloc(height * width, sizeof(uint8_t));
 
@@ -378,6 +442,8 @@ namespace GPU
         int* weightsDown  = (int*)calloc(height * width, sizeof(int));
         int* weightsLeft  = (int*)calloc(height * width, sizeof(int));
         int* weightsRight = (int*)calloc(height * width, sizeof(int));
+
+        bool* visited = (bool*)calloc(height * width, sizeof(uint8_t));
 
         uint32_t* heights = (uint32_t*)calloc(height * width,
             sizeof(uint32_t));
@@ -474,9 +540,12 @@ namespace GPU
             ip++;
         }
 
-        cudaMemcpy2D(heights, width * sizeof(uint32_t), d_heights, pitch,
+        cudaMemcpy2D(excessFlows, width * sizeof(uint32_t), d_excessFlows, pitch,
             width * sizeof(uint32_t), height, cudaMemcpyDeviceToHost);
-        SavePicture(heights, width, height, heightMax);
+
+        InitBFS(visited, bitmask, excessFlows, width, height);
+
+        SavePicture(visited, width, height, heightMax);
 
         cudaFree(d_weightsUp);
         cudaFree(d_weightsDown);
