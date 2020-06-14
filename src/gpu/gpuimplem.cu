@@ -283,7 +283,7 @@ namespace GPU
             }
 
             if (*currFlow > 0)
-                atomicAdd(isAnyActive,1);
+                *isAnyActive = 1;
         }
     }
 
